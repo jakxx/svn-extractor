@@ -32,7 +32,7 @@ def readsvn(data,urli):
                         os.makedirs(folder_path)
                 dir_list = dir_list + ";" + old_line
                 print urli + old_line
-                d=requests.get(urli+old_line + "/.svn/entries", verify=False)
+                d=requests.get(urli+old_line + "/.svn/entries", verify=False, headers={header})
                 readsvn(d,urli+old_line)
         old_line = a
     return file_list,dir_list,user
@@ -85,7 +85,7 @@ def save_url_wc(url,filename,svn_path):
             if not folder.endswith('\\'):
                 folder = folder  + "\\"
             try:
-                r=requests.get(url + svn_path, verify=False)
+                r=requests.get(url + svn_path, verify=False, headers={header})
                 with open(folder+os.path.basename(filename),"wb") as f:
                     f.write(r.content)
             except Exception,e:
@@ -100,7 +100,7 @@ def save_url_svn(url,filename):
     folder=os.path.join("output", url.replace("http://","").replace("https://","").replace("/",os.path.sep))
     if not folder.endswith(os.path.sep):
         folder = folder  + os.path.sep
-    r=requests.get(url + "/.svn/text-base/" + filename + ".svn-base", verify=False)
+    r=requests.get(url + "/.svn/text-base/" + filename + ".svn-base", verify=False, headers={header})
     with open(folder + filename,"wb") as f:
         f.write(r.content)
     return 0
@@ -117,7 +117,9 @@ either .svn entries file (<1.6)
 or wc.db (> 1.7) are available online.
 This program actually automates the directory navigation and text extraction process"""
     epilog="""Credit (C) Anant Shrivastava http://anantshri.info
-    Greets to Amol Naik, Akash Mahajan, Prasanna K, Lava Kumar for valuable inputs"""
+    Greets to Amol Naik, Akash Mahajan, Prasanna K, Lava Kumar for valuable inputs
+    
+    2/24/15 - Updated by jakx_ to add header functionality"""
     parser = argparse.ArgumentParser(description=desc,epilog=epilog)
     parser.add_argument("--url",help="Provide URL",dest='target',required=True)
     parser.add_argument("--debug",help="Provide debug information",action="store_true")
@@ -126,8 +128,10 @@ This program actually automates the directory navigation and text extraction pro
     parser.add_argument("--userlist",help="show the usernames used for commit",action="store_true")
     parser.add_argument("--wcdb", help="check only wcdb",action="store_true")
     parser.add_argument("--entries", help="check only .svn/entries file",action="store_true")
+    parser.add_argument("--header=\"cookie:test\"", help="Request pages with specified header value",action="store_true")
     x=parser.parse_args()
     url=x.target
+    header=x.header
     no_extract=x.noextract
     show_debug=x.debug
     if (x.wcdb and x.entries):
@@ -141,13 +145,13 @@ This program actually automates the directory navigation and text extraction pro
         url = url + "/"
     print "Checking if URL is correct"
     try:
-        r=requests.get(url, verify=False)
+        r=requests.get(url, verify=False, headers={header})
     except Exception,e:
         print "Problem connecting to URL"
         if show_debug:
             traceback.print_exc()
         exit()
-    if [200,403].count(r.status_code) > 0:
+    if [200,403,404].count(r.status_code) > 0:
         print "URL is active"
         if no_extract:
             folder_path=os.path.join("output",  url.replace("http://","").replace("https://","").replace("/",os.path.sep))
@@ -155,7 +159,7 @@ This program actually automates the directory navigation and text extraction pro
                 os.makedirs(folder_path)
         if not x.entries:
             print "Checking for presence of wc.db"
-            r=requests.get(url + "/.svn/wc.db", verify=False,allow_redirects=False)
+            r=requests.get(url + "/.svn/wc.db", verify=False,allow_redirects=False, headers={header})
             if r.status_code == 200:
                 print "WC.db found"
                 rwc=readwc(r,url)
@@ -172,7 +176,7 @@ This program actually automates the directory navigation and text extraction pro
         if not x.wcdb:
             print "lets see if we can find .svn/entries"
             #disabling redirection to make sure no redirection based 200ok is captured.
-            r=requests.get(url + "/.svn/entries", verify=False,allow_redirects=False)
+            r=requests.get(url + "/.svn/entries", verify=False,allow_redirects=False, headers={header})
             if r.status_code == 200:
                 print "SVN Entries Found if no file listed check wc.db too"
                 data=readsvn(r,url)
