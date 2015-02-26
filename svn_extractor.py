@@ -32,7 +32,10 @@ def readsvn(data,urli):
                         os.makedirs(folder_path)
                 dir_list = dir_list + ";" + old_line
                 print urli + old_line
-                d=requests.get(urli+old_line + "/.svn/entries", verify=False, headers={header})
+                if (username and password is not None):
+		    d=requests.get(urli+old_line + "/.svn/entries", verify=False, auth=(username, password))
+                else:
+                    d=requests.get(urli+old_line + "/.svn/entries", verify=False)
                 readsvn(d,urli+old_line)
         old_line = a
     return file_list,dir_list,user
@@ -85,7 +88,10 @@ def save_url_wc(url,filename,svn_path):
             if not folder.endswith('\\'):
                 folder = folder  + "\\"
             try:
-                r=requests.get(url + svn_path, verify=False, headers={header})
+	        if (username and password is not None):
+                    r=requests.get(url + svn_path, verify=False, auth=(username, password))
+                else:
+                    r=requests.get(url + svn_path, verify=False)
                 with open(folder+os.path.basename(filename),"wb") as f:
                     f.write(r.content)
             except Exception,e:
@@ -100,7 +106,10 @@ def save_url_svn(url,filename):
     folder=os.path.join("output", url.replace("http://","").replace("https://","").replace("/",os.path.sep))
     if not folder.endswith(os.path.sep):
         folder = folder  + os.path.sep
-    r=requests.get(url + "/.svn/text-base/" + filename + ".svn-base", verify=False, headers={header})
+    if (username and password is not None):
+        r=requests.get(url + "/.svn/text-base/" + filename + ".svn-base", verify=False, auth=(username,password))
+    else:
+        r=requests.get(url + "/.svn/text-base/" + filename + ".svn-base", verify=False)
     with open(folder + filename,"wb") as f:
         f.write(r.content)
     return 0
@@ -111,6 +120,8 @@ def main(argv):
     global show_debug
     global no_extract
     global author_list 
+    global username
+    global password
     author_list=[]
     desc="""This program is used to extract the hidden SVN files from a webhost considering
 either .svn entries file (<1.6)
@@ -128,14 +139,18 @@ This program actually automates the directory navigation and text extraction pro
     parser.add_argument("--userlist",help="show the usernames used for commit",action="store_true")
     parser.add_argument("--wcdb", help="check only wcdb",action="store_true")
     parser.add_argument("--entries", help="check only .svn/entries file",action="store_true")
-    parser.add_argument("--header=\"cookie:test\"", help="Request pages with specified header value",action="store_true")
+    parser.add_argument("--username", help="Request pages with specified header value",dest='username')
+    parser.add_argument("--password", help="Request pages with specified header value",dest='password')
     x=parser.parse_args()
     url=x.target
-    header=x.header
+    username=x.username
+    password=x.password
     no_extract=x.noextract
     show_debug=x.debug
+    if (username and password is not None):
+        print "Using credentials supplied for all requests..."
     if (x.wcdb and x.entries):
-        print "Checking both wc.db and .svn/entries (default behaviour no need to specify switch)"
+        print "Checking for both wc.db and .svn/entries (default behaviour no need to specify switch)"
         x.wcdb = False
         x.entries=False
     if url is None:
@@ -145,13 +160,16 @@ This program actually automates the directory navigation and text extraction pro
         url = url + "/"
     print "Checking if URL is correct"
     try:
-        r=requests.get(url, verify=False, headers={header})
+	    if (username and password is not None):
+                r=requests.get(url, verify=False, auth=(username,password))
+	    else:
+	        r=requests.get(url, verify=False)
     except Exception,e:
         print "Problem connecting to URL"
         if show_debug:
             traceback.print_exc()
         exit()
-    if [200,403,404].count(r.status_code) > 0:
+    if [200,403].count(r.status_code) > 0:
         print "URL is active"
         if no_extract:
             folder_path=os.path.join("output",  url.replace("http://","").replace("https://","").replace("/",os.path.sep))
@@ -159,7 +177,10 @@ This program actually automates the directory navigation and text extraction pro
                 os.makedirs(folder_path)
         if not x.entries:
             print "Checking for presence of wc.db"
-            r=requests.get(url + "/.svn/wc.db", verify=False,allow_redirects=False, headers={header})
+	    if (username and password is not None):
+                r=requests.get(url + "/.svn/wc.db", verify=False,allow_redirects=False, auth=(username,password))
+	    else:
+	        r=requests.get(url + "/.svn/wc.db", verify=False,allow_redirects=False)
             if r.status_code == 200:
                 print "WC.db found"
                 rwc=readwc(r,url)
@@ -167,6 +188,8 @@ This program actually automates the directory navigation and text extraction pro
                     if x.userlist:
                         show_list(author_list,"List of Usersnames used to commit in svn are listed below")
                         exit()
+            else:
+                print "WC.db not found"
         else:
             if show_debug:
                 print "Status code returned : " + str(r.status_code)
@@ -174,11 +197,14 @@ This program actually automates the directory navigation and text extraction pro
                 print r.text
             print "WC.db Lookup FAILED"
         if not x.wcdb:
-            print "lets see if we can find .svn/entries"
+            print "Checking for presence of .SVN/entries"
             #disabling redirection to make sure no redirection based 200ok is captured.
-            r=requests.get(url + "/.svn/entries", verify=False,allow_redirects=False, headers={header})
+            if (username and password is not None):
+	        r=requests.get(url + "/.svn/entries", verify=False,allow_redirects=False, auth=(username,password))
+	    else:
+	        r=requests.get(url + "/.svn/entries", verify=False,allow_redirects=False)
             if r.status_code == 200:
-                print "SVN Entries Found if no file listed check wc.db too"
+                print "SVN Entries Found. If no files listed, check wc.db too"
                 data=readsvn(r,url)
                 if 'author_list' in globals() and x.userlist:
                     show_list(author_list,"List of Usersnames used to commit in svn are listed below")
@@ -189,7 +215,7 @@ This program actually automates the directory navigation and text extraction pro
                     print "Full Respose"
                     print r.text
                 print ".svn/entries Lookup FAILED"
-        print (url + " doesn't contains any SVN repository in it")
+                print (url + " doesn't contains any SVN repository")
     else:
         print "URL returns " + str(r.status_code)
         exit()
