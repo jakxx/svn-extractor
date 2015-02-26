@@ -66,10 +66,13 @@ optional arguments:
   --noextract   Don't extract files just show content  
   --userlist    show the usernames used for commit  
   --wcdb        check only wcdb  
-  --entries     check only .svn/entries file  
+  --entries     check only .svn/entries file 
+  --username    Use supplied username for auth
+  --password    Use supplied password for auth
   
 Credit (C) Anant Shrivastava http://anantshri.info Greets to Amol Naik, Akash Mahajan, Prasanna K, Lava Kumar for valuable inputs  
 
+2-26-2015 - Jakx_ Update
 
 References
 ==========
